@@ -1,5 +1,5 @@
-import { Component } from 'react';
-import { getArticles } from 'Services/apiService';
+import { useState, useEffect } from 'react';
+import { fetchApi } from 'Services/apiService';
 import Button from './Button/Button';
 import ImageGallery from './ImageGallery/ImageGallery';
 import Loader from './Loader/Loader';
@@ -9,101 +9,63 @@ import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import Modal from './Modal/Modal';
 
-class App extends Component {
-  state = {
-    text: '',
-    page: 1,
-    searchData: [],
-    dataLargeImage: {},
-    isLoading: false,
-    isModalOpen: false,
-    isError: false,
+export default function App() {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const [searchData, setSearchData] = useState([]);
+  const [dataLargeImage, setDataLargeImage] = useState({});
+  const [isLoading, setIsLoading] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isError, setIsError] = useState(false);
+
+  useEffect(() => {
+    if (searchQuery === '') return;
+
+    setIsLoading(true);
+    
+    fetchApi(searchQuery, page)
+      .then(data => {
+        setSearchData(prev => [...prev, ...data.hits]);
+      })
+      .catch(err => setIsError(true))
+      .finally(() => setIsLoading(false));
+  }, [searchQuery, page]);
+
+  const onSubmitNewSearch = newText => {
+    setSearchQuery(newText);
+    setPage(1);
+    setSearchData([]);
+    setIsError(false);
   };
 
-  getSnapshotBeforeUpdate(prevProps, prevState) {
-    if (prevState.searchData !== this.state.searchData) {
-      return document.body.clientHeight;
-    }
-    return null;
-  }
-
-  componentDidUpdate(prevProps, prevState, snapshot) {
-    if (prevState.text !== this.state.text) {
-      this.getData();
-    }
-
-    if (prevState.searchData !== this.state.searchData && this.state.page > 1) {
-      this.scrollPage(snapshot);
-    }
-  }
-
-  onSubmitNewSearch = newText => {
-    this.setState({
-      text: newText,
-      page: 1,
-      searchData: [],
-      isError: false,
-    });
+  const onLoadMore = () => {
+    setPage(prev => prev + 1);
   };
 
-  getData = () => {
-    const { text, page } = this.state;
-    this.setState({ isLoading: true });
-    getArticles(text, page)
-      .then(data =>
-        this.setState(prev => ({
-          searchData: [...prev.searchData, ...data.hits],
-          page: prev.page + 1,
-        }))
-      )
-      .catch(() => this.setState({ isError: true }))
-      .finally(() => this.setState({ isLoading: false }));
+  const onHandleClickImage = data => {
+    setDataLargeImage(data);
+    toggleModal();
   };
 
-  onLoadMore = () => {
-    this.getData();
+  const toggleModal = () => {
+    setIsModalOpen(prev => !prev);
   };
-
-  onHandleClickImage = data => {
-    this.setState({ dataLargeImage: data });
-    this.toogleModal();
-  };
-
-  toogleModal = () => {
-    this.setState(({ isModalOpen }) => ({ isModalOpen: !isModalOpen }));
-  };
-
-  scrollPage = snapshot => {
-    window.scrollTo({
-      top: snapshot - 250,
-      behavior: 'smooth',
-    });
-  };
-
-  render() {
-    const { searchData, isLoading, isError, isModalOpen, dataLargeImage } =
-      this.state;
-
-    return (
-      <div className={s.App}>
-        <Searchbar onSubmit={this.onSubmitNewSearch} />
-        <ImageGallery
-          searchData={searchData}
-          onHandleClickImage={this.onHandleClickImage}
-        />
-        {searchData.length !== 0 && <Button onLoadMore={this.onLoadMore} />}
-        {isLoading && <Loader />}
-        {isError && toast.error('Sorry, there are no images matching your search query.')}
-        <ToastContainer autoClose={5000} />
-        {isModalOpen && (
-          <Modal
-            dataLargeImage={dataLargeImage}
-            toogleModal={this.toogleModal}
-          />
-        )}
-      </div>
-    );
-  }
+  
+  return (
+    <div className={s.App}>
+      <Searchbar onSubmit={onSubmitNewSearch} />
+      <ImageGallery
+        searchData={searchData}
+        onHandleClickImage={onHandleClickImage}
+      />
+      {searchData.length !== 0 && <Button onLoadMore={onLoadMore} />}
+      {isLoading && <Loader />}
+      {isError &&
+        toast.error('Sorry, there are no images matching your search query.')}
+      <ToastContainer autoClose={5000} />
+      {isModalOpen && (
+        <Modal dataLargeImage={dataLargeImage} toggleModal={toggleModal} />
+      )}
+    </div>
+  );
 }
-
-export default App;
